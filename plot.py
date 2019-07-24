@@ -44,6 +44,11 @@ for nodeTimes in times.values():
     if nodeTimes[0] < startTime:  # looking at the first log entry from each file
         startTime = nodeTimes[0]
 
+# Make times relative to start time
+for node in times.keys():
+    for i in range (0, len(times[node])):
+        times[node][i] = (times[node][i] - startTime).total_seconds() / 60   # time relative to start in minutes
+
 # Print figures
 f1 = plt.figure()
 plt.title("original")
