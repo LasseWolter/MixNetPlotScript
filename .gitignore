@@ -1,0 +1,9 @@
+log/*
+mix*/*
+provider/*
+service_provider/*
+queue_outputs/*
+bin/*
+auth/*
+alice.toml
+cli*

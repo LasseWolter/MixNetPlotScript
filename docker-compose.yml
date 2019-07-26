@@ -1,0 +1,7 @@
+version: "3"
+
+services:
+  mixnet:
+    build: .
+    volumes:
+        - /home/lasse/Programming/mix_net/docker:/mix_net
