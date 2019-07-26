@@ -50,17 +50,24 @@ for node in times.keys():
         times[node][i] = (times[node][i] - startTime).total_seconds() / 60   # time relative to start in minutes
 
 # Print figures
+# Original
 f1 = plt.figure()
-plt.title("original")
+plt.title("Original")
+plt.xlabel("Time [min]")
+plt.ylabel("Queue Length")
 for node in nodes:
     plt.plot(times[node], lengths[node])
 
+
+# Apply convolution with given window size
 f3 = plt.figure()
-plt.title("convolution")
+winSize = 20  # Size of the convolution window
+plt.title("Convolution (winSize: %d)" % winSize)
+plt.xlabel("Time [min]")
+plt.ylabel("Queue Length")
 for node in nodes:
     y = np.array(lengths[node])
     x = np.linspace(0, 500, num=len(y))
-    winSize = 20  # Size of the convolution window
     f = np.convolve(y, np.ones(winSize), mode='same') / winSize
     plt.plot(times[node], f)
 
