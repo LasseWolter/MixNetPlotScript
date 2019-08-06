@@ -14,8 +14,14 @@ import pandas as pd
 # Calculate stats for this particular logDir and returns the stats in a DataFrame
 
 
-def calcStats(logDir):
-
+def calcStats(logDir, start_time=-1, end_time=-1, onlyStable=False):
+    """
+    Calculates the statistics for all log files in the directory given with logDir
+    - start_time, end_time: define the period of the experiment in seconds for which the stats should be calculated
+                            if not set the whole duration of the experiment will be taken
+    - onlyStable: (False by default) start_time and end_time are chosen automatically to exclude the setup and teardown phase
+                  thus only looking at the "steady state phase"
+    """
     # Timestamp format used in log_files - later used for parsing
     time_stamp_fmt = '%b %d %H:%M:%S.%f'
 
@@ -23,10 +29,7 @@ def calcStats(logDir):
     log_files = os.listdir(logDir)
     nodes = [x for x in log_files if x.startswith('ql_')]
 
-    raw_data = {
-    }  # The data each stipped to period between first and last nonzero queueLength
-    data = {
-    }  # This dictonary will contain a dataframe for each logFile - during one common experiment period
+    data = {}  # contains a DataFrame for each logFile
     for node in nodes:
         path = os.path.join(ARGS.logDir, node)
         data[node] = pd.read_csv(path, names=['time', 'queueLength'])
@@ -38,25 +41,26 @@ def calcStats(logDir):
         # simlar find the last nonzero queueLength
         to_ind = data[node].queueLength.to_numpy().nonzero()[0][-1] + 1
         # strip out zero values at the beginning and end
-        raw_data[node] = data[node][from_ind:to_ind]
-        # data[node].columns=['time', node] # rename such that different files have different names for the join below
+        data[node] = data[node][from_ind:to_ind]
 
     win_size = 8000
-    print(raw_data[nodes[0]])
-    print(raw_data[nodes[0]].shape)
-
-    conv = np.convolve(raw_data[nodes[0]].queueLength,
-                       np.ones(win_size),
-                       mode='same') / win_size
-    diff = pd.Series(conv).diff()
-    start_ind = diff.lt(0).idxmax()
-    stop_ind = diff[::-1].gt(0).idxmax()
-    # Find experiment start and end time by finding earliest/latest time stamp out of all log files
-    start_time = min([x['time'].iat[0] for x in raw_data.values()])
-    end_time = max([x['time'].iat[-1] for x in raw_data.values()])
+    if onlyStable:
+        conv = np.convolve(data[nodes[0]].queueLength,
+                           np.ones(win_size),
+                           mode='same') / win_size
+        diff = pd.Series(conv).diff()
+        start_ind = diff.lt(0).idxmax()
+        stop_ind = diff[::-1].gt(0).idxmax()
+        start_time = data[nodes[0]]['time'].iloc[start_ind]
+        end_time = data[nodes[0]]['time'].ilco[stop_ind]
+    elif start_time == -1 and end_time == -1:
+        # Find experiment start and end time by finding earliest/latest time stamp out of all log files
+        start_time = min([x['time'].iat[0] for x in data.values()])
+        end_time = max([x['time'].iat[-1] for x in data.values()])
 
     # Calculate experiment Duration in seconds
     exp_duration = (end_time - start_time).total_seconds()
+
     col_names = np.array([['mean_' + x, 'std_' + x, 'zeroFreq_' + x]
                           for x in nodes]).flatten()
     df = pd.DataFrame(columns=col_names)
@@ -81,7 +85,19 @@ def calcStats(logDir):
         df.loc[0]['zeroFreq_' +
                   node] = q_length.value_counts(0).size / q_length.size
 
-    # Print figures
+    plotFig(data, nodes, exp_duration, df, win_size)
+
+    return df
+
+
+def plotFig(data, nodes, exp_duration, stats_df, win_size):
+    """
+    Plot two plots in one figure
+        - the original data
+        - data with convolution applied to it
+    """
+
+    # General figure parameters
     f_size = (18, 10)  # Size of figures
     # How many full minutes happened during the experiment (+1 because of 0)
     min_num = int(exp_duration / 60) + 1
@@ -105,12 +121,11 @@ def calcStats(logDir):
     ax2.set_xticklabels(list(range(min_num)))
     ax2.set_xlabel("Time [min]")
     for node in nodes:
-        ax1.plot(data[node].relTime[start_ind:stop_ind],
-                 data[node].queueLength[start_ind:stop_ind])
+        ax1.plot(data[node].relTime, data[node].queueLength)
         text_str += '\n'.join(
-            (node + ':', r'mean=%.2f' % (df.loc[0]['mean_' + node]),
-             r'$\sigma=%.2f$' % (df.loc[0]['std_' + node]),
-             r'zeroFrac=%.2f' % (df.loc[0]['zeroFreq_' + node]), '', ''))
+            (node + ':', r'mean=%.2f' % (stats_df.loc[0]['mean_' + node]),
+             r'$\sigma=%.2f$' % (stats_df.loc[0]['std_' + node]),
+             r'zeroFrac=%.2f' % (stats_df.loc[0]['zeroFreq_' + node]), '', ''))
 
     text_str += '\n'.join(('Parameters:', r'$\lambda P=%g$' % (LAMBDA_P),
                            r'Mu=%g' % (MU), '', ''))
@@ -132,14 +147,14 @@ def calcStats(logDir):
     ax4.set_xlabel("Time [min]")
     for node in nodes:
         qls = np.array(data[node].queueLength)
-        x = np.linspace(0, 500, num=len(qls))
+        # win_size can max be the number of samples
+        win_size = len(qls) if win_size > len(qls) else win_size
         conv = np.convolve(qls, np.ones(win_size), mode='same') / win_size
+        print(len(conv))
         ax3.plot(data[node].relTime, conv)
 
     fig.show()
     input()
-
-    return df
 
 
 def parse_conf(conf):
