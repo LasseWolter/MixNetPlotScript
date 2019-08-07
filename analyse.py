@@ -12,26 +12,26 @@ import pandas as pd
 import toml
 
 
-def calcStats(logDir, start_sec=0, end_sec=0, onlyStable=False):
+def calcStats(log_dir, start_sec=0, end_sec=0, only_steady=False):
     """
-    Calculates the statistics for all log files in the directory given with logDir
+    Calculates the statistics for all log files in the directory given with log_dir
     - start_sec, end_sec: define the period of the experiment in seconds for which the stats should be calculated
                             if not set the whole duration of the experiment will be taken (regardless of the default value being 0)
-    - onlyStable: (False by default) start_time and end_time are chosen automatically to exclude the setup and teardown phase
+    - only_steady: (False by default) start_time and end_time are chosen automatically to exclude the setup and teardown phase
                   thus only looking at the "steady state phase"
     """
     # Timestamp format used in log_files - later used for parsing
     time_stamp_fmt = '%b %d %H:%M:%S.%f'
 
     # Take out the log files which log queueLengths
-    log_files = os.listdir(logDir)
+    log_files = os.listdir(log_dir)
     nodes = [x for x in log_files if x.startswith('ql_')]
 
     data = {}  # contains a DataFrame for each logFile
     start_ind = sys.maxsize
     stop_ind = 0
     for node in nodes:
-        path = os.path.join(ARGS.logDir, node)
+        path = os.path.join(log_dir, node)
         data[node] = pd.read_csv(path, names=['time', 'queueLength'])
         # Turn time string into datetime object
         data[node]['time'] = data[node]['time'].apply(
@@ -65,7 +65,7 @@ def calcStats(logDir, start_sec=0, end_sec=0, onlyStable=False):
     steady_end_time = data[nodes[0]]['time'].iloc[stop_ind]
 
     # Apply costum start and end time if given
-    if onlyStable:
+    if only_steady:
         start_time = steady_start_time
         end_time = steady_end_time
         exp_duration = (end_time - start_time).total_seconds()
@@ -192,17 +192,91 @@ def parse_conf(conf):
             parsed_conf["Experiment"]["Mu"])
 
 
+def make_mom_plot(df, ax, title=''):
+    """
+    Calculates the stats for a bunch of expriment and returns a corresponding axis containing a mean of means plot
+        - df: DataFrame containing statistics for each experiment
+    """
+    mean_cols = [x for x in df.columns if 'mean' in x]
+    labels = [x.split('_')[2] for x in mean_cols]  # strip the nodes name
+    std_cols = [x for x in df.columns if 'std' in x]
+    mean_of_means = df[mean_cols].mean(axis=0)
+    mean_of_stds = df[std_cols].mean(axis=0)
+
+    x_pos = np.arange(len(labels))
+    ax.bar(x_pos, mean_of_means, yerr=mean_of_stds, capsize=10, alpha=0.5)
+    ax.set_ylabel('Queue Length')
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(labels)
+    ax.set_title(title)
+    ax.yaxis.grid(True)
+
+
+def plot_mean_of_means(df_dict):
+    """
+    Plot mean of means of all given DataFrames in one figure and save them to file
+        -dfs: dict with keys being the plot title and values being the corresponding DataFrames
+    """
+    print("Plotting Mean of Means for %d DataFrames..." % (len(df_dict)))
+    fig, axs = plt.subplots(ncols=len(df_dict), constrained_layout=True)
+    fig.suptitle("Server Msg Queue Length\nMean of Means")
+
+    for (i, title) in enumerate(df_dict.keys()):
+        make_mom_plot(df_dict[title], axs[i], title)
+        file_title = ''.join(title.split(' '))
+        path = os.path.join(ARGS.exp_dir, file_title + '.csv')
+        # Save stats to file
+        with open(path, 'w+') as f:
+            df_dict[title].to_csv(f)
+        print('Saved .csv file for \"%s\": to %s' % (title, path))
+
+    fig.show()
+    input()
+    path = os.path.join(ARGS.exp_dir, 'mean_of_means.png')
+    fig.savefig(path)
+    print('Successfully saved plot to %s' % path)
+
+
+def calc_all_stats(start_sec=-1, end_sec=-1, only_steady=False):
+    """
+    Calculates stats for all log files and returns them in one common DataFrame
+    """
+    exp_df = pd.DataFrame()  # Will contain data from all experiments
+
+    # Create list of files/folders in exp_dir with absolute paths - absolut paths are needed for checking if it's a directory
+    files = [os.path.join(ARGS.exp_dir, x) for x in os.listdir(ARGS.exp_dir)]
+    log_dirs = list(filter(os.path.isdir, files))
+    print("Calculating stats for %d experiment runs in experiment folder..." %
+          len(log_dirs))
+    for log_dir in log_dirs:
+        print('Calculating stats for %s' % log_dir)
+        df = calcStats(log_dir,
+                       start_sec=start_sec,
+                       end_sec=end_sec,
+                       only_steady=only_steady)
+        exp_df = exp_df.append(df)
+
+    # Calculate stats for whole dataset and plot them
+    print('Finished calculating stats for each experiment')
+    exp_df = exp_df.reset_index()  # s.t. we have indices from 1 to n
+    return exp_df
+
+
 def parse_args():
     """
     Parses input arguments and returns a dict containing them mapped to their arg_names
     """
     # Gets input args with default value none
-    arg_names = ["command", "logDir", "config", "show"]
+    arg_names = ["command", "exp_dir", "config", "from_disc", "show"]
     args = dict(zip(arg_names, sys.argv))
-    if len(sys.argv) < len(arg_names):
+    # The first 2 arguments are compulsory
+    if len(sys.argv) < 3:
         usage = 'Usage: ' + sys.argv[0]
-        for arg in arg_names[1:]:  # exclude the command itself
-            usage += " <%s>" % arg
+        for i, arg in enumerate(arg_names[1:]):  # exclude the command itself
+            if i >= 2:
+                usage += " (<%s>)" % arg
+            else:
+                usage += " <%s>" % arg
         print(usage)
         exit(0)
 
@@ -211,17 +285,26 @@ def parse_args():
     return args
 
 
-def main():
-    """
-    main function
-    """
-    data_frame = calcStats(ARGS.logDir, end_sec=220, start_sec=200)
-
-
 # Constants
 ARGS = parse_args()
 LAMBDA_P, MU = parse_conf(ARGS.config)
-main()
+
+if __name__ == '__main__':
+    dfs = {}
+    if ARGS.from_disc == "from_disc":
+        files = [x for x in os.listdir(ARGS.exp_dir) if x.endswith('.csv')]
+        print("Reading files %d .csv-files from disc..." % len(files))
+        for file in files:
+            file_name = file.split('.')[0]  # strip the .csv ending
+            file = ''.join(file.split(' '))  # strip out whitespace
+            path = os.path.join(ARGS.exp_dir, file)  # absolut path
+            dfs[file_name] = pd.read_csv(path)
+            print("Created DataFrame from disc -> %s" % file)
+    else:
+        dfs["Whole duration"] = calc_all_stats()
+        dfs["Only Steady Period"] = calc_all_stats(only_steady=True)
+
+    plot_mean_of_means(dfs)
 
 # Put nodes into dataframe
 # Put queueLogs of all files in one dataframe
