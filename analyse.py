@@ -147,8 +147,9 @@ def plotFig(data, nodes, exp_duration, stats_df, win_size, steady_start_time,
              r'$\sigma=%.2f$' % (stats_df.loc[0]['std_' + node]),
              r'zeroFrac=%.2f' % (stats_df.loc[0]['zeroFreq_' + node]), '', ''))
 
-    text_str += '\n'.join(('Parameters:', r'$\lambda P=%g$' % (LAMBDA_P),
-                           r'Mu=%g' % (MU), '', ''))
+    text_str += '\n'.join(
+        ('Parameters:', r'$\lambda P=%g$' % (LAMBDA_P), r'Mu=%g' % (MU),
+         r'$\frac{\lambda P}{Mu}=%g$' % (LAMBDA_P / MU), ''))
     ax1.text(-0.25, 0.2, text_str, transform=ax1.transAxes)
     # Plot vertical lines to mark the steady state period
     ax1.axvline(x=steady_start_time, c='r')
@@ -160,6 +161,7 @@ def plotFig(data, nodes, exp_duration, stats_df, win_size, steady_start_time,
     ax3.set_title("Convolution (win_size: %d)" % win_size)
     ax3.set_xlabel("Time [s]")
     ax3.set_ylabel("Queue Length")
+
     # Add seconds axis showing full minutes
     ax4 = ax3.twiny()
     ax4.set_xlim(ax3.get_xlim())
@@ -174,6 +176,12 @@ def plotFig(data, nodes, exp_duration, stats_df, win_size, steady_start_time,
         win_size = len(qls) if win_size > len(qls) else win_size
         conv = np.convolve(qls, np.ones(win_size), mode='same') / win_size
         ax3.plot(data[node].relTime, conv)
+
+    # Plot vertical lines to mark the steady state period
+    ax3.axvline(x=steady_start_time, c='r')
+    ax3.axvline(x=steady_end_time, c='r')
+
+    fig.legend(labels=nodes + ['steady_period_edge'])
     path = os.path.join(log_dir, str(int(exp_duration)) + "s.png")
     fig.savefig(path)
 
@@ -221,7 +229,9 @@ def plot_mean_of_means(df_dict):
         -dfs: dict with keys being the plot title and values being the corresponding DataFrames
     """
     print("Plotting Mean of Means for %d DataFrames..." % (len(df_dict)))
-    fig, axs = plt.subplots(ncols=len(df_dict), constrained_layout=True)
+    fig, axs = plt.subplots(ncols=len(df_dict),
+                            constrained_layout=True,
+                            sharey=True)
     fig.suptitle("Server Msg Queue Length\nMean of Means")
 
     for (i, title) in enumerate(df_dict.keys()):
@@ -308,8 +318,3 @@ if __name__ == '__main__':
         dfs["Only Steady Period"] = calc_all_stats(only_steady=True)
 
     plot_mean_of_means(dfs)
-
-# Put nodes into dataframe
-# Put queueLogs of all files in one dataframe
-# dfs = [x for x in data.values()]
-# df = pd.concat(dfs)
