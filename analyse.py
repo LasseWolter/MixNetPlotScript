@@ -102,13 +102,14 @@ def calcStats(log_dir, start_sec=0, end_sec=0, only_steady=False):
     stead_start = (steady_start_time - start_time).total_seconds()
     stead_end = (steady_end_time - start_time).total_seconds()
 
-    plotFig(data, nodes, exp_duration, df, win_size, stead_start, stead_end)
+    plotFig(data, nodes, exp_duration, df, win_size, stead_start, stead_end,
+            log_dir)
 
     return df
 
 
 def plotFig(data, nodes, exp_duration, stats_df, win_size, steady_start_time,
-            steady_end_time):
+            steady_end_time, log_dir):
     """
     Plot two plots in one figure
         - the original data
@@ -173,6 +174,8 @@ def plotFig(data, nodes, exp_duration, stats_df, win_size, steady_start_time,
         win_size = len(qls) if win_size > len(qls) else win_size
         conv = np.convolve(qls, np.ones(win_size), mode='same') / win_size
         ax3.plot(data[node].relTime, conv)
+    path = os.path.join(log_dir, str(int(exp_duration)) + "s.png")
+    fig.savefig(path)
 
     if ARGS.show == "show":
         fig.show()
@@ -243,7 +246,7 @@ def calc_all_stats(start_sec=-1, end_sec=-1, only_steady=False):
     """
     exp_df = pd.DataFrame()  # Will contain data from all experiments
 
-    # Create list of files/folders in exp_dir with absolute paths - absolut paths are needed for checking if it's a directory
+    # Create list of files/folders in exp_dir
     files = [os.path.join(ARGS.exp_dir, x) for x in os.listdir(ARGS.exp_dir)]
     log_dirs = list(filter(os.path.isdir, files))
     print("Calculating stats for %d experiment runs in experiment folder..." %
