@@ -36,6 +36,10 @@ def calcStats(log_dir, start_sec=0, end_sec=0, only_steady=False):
         # Turn time string into datetime object
         data[node]['time'] = data[node]['time'].apply(
             lambda x: datetime.datetime.strptime(x, time_stamp_fmt))
+        # If one of the logFiles just contains zeros, skip index calculation for stipping zeros
+        # this only works if one of the log files is not all zeros which is a reasonable assumption
+        if data[node].queueLength.to_numpy().nonzero()[0].size <= 0:
+            continue
         # Finds the first and last nonzero queueLength (-+1 to include the last 0)
         # And sets start/stop index for experiment by taking extremes of all values
         from_ind = data[node].queueLength.to_numpy().nonzero()[0][0] - 1
