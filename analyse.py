@@ -47,6 +47,12 @@ def calcStats(log_dir, start_sec=0, end_sec=0, only_steady=False):
         to_ind = data[node].queueLength.to_numpy().nonzero()[0][-1] + 1
         stop_ind = to_ind if to_ind > stop_ind else stop_ind
 
+    if start_ind == sys.maxsize:
+        print(
+            "All logs contain only queueLengths of value 0, cannot analyse such data."
+            + "\nReturning empty DataFrame for this experiment run...")
+        return pd.DataFrame()
+
     # Strip DataFrames to common length only containing relevant data
     data = {node: df[start_ind:stop_ind + 1] for (node, df) in data.items()}
 
@@ -254,6 +260,12 @@ def plot_mean_of_means(df_dict):
     print('Successfully saved plot to %s' % path)
 
 
+def print_header(title):
+    print('\n' + '-' * 80)
+    print(title)
+    print('-' * 80 + '\n')
+
+
 def calc_all_stats(start_sec=-1, end_sec=-1, only_steady=False):
     """
     Calculates stats for all log files and returns them in one common DataFrame
@@ -263,8 +275,9 @@ def calc_all_stats(start_sec=-1, end_sec=-1, only_steady=False):
     # Create list of files/folders in exp_dir
     files = [os.path.join(ARGS.exp_dir, x) for x in os.listdir(ARGS.exp_dir)]
     log_dirs = list(filter(os.path.isdir, files))
-    print("Calculating stats for %d experiment runs in experiment folder..." %
-          len(log_dirs))
+    print_header(
+        "Calculating stats for %d experiment runs in experiment folder..." %
+        len(log_dirs))
     for log_dir in log_dirs:
         print('Calculating stats for %s' % log_dir)
         df = calcStats(log_dir,
