@@ -155,39 +155,39 @@ def plotFig(data, nodes, exp_duration, stats_df, win_size, steady_start_time,
         text_str += '\n'.join(
             (node + ':', r'mean=%.2f' % (stats_df.loc[0]['mean_' + node]),
              r'$\sigma=%.2f$' % (stats_df.loc[0]['std_' + node]),
-             r'zeroFrac=%.2f' % (stats_df.loc[0]['zeroFreq_' + node]), '', ''))
+             r'zeroFreq=%.2f' % (stats_df.loc[0]['zerofreq_' + node]), '', ''))
 
     text_str += '\n'.join(
-        ('Parameters:', r'$\lambda P=%g$' % (LAMBDA_P), r'Mu=%g' % (MU),
-         r'$\frac{\lambda P}{Mu}=%g$' % (LAMBDA_P / MU), ''))
-    ax1.text(-0.25, 0.2, text_str, transform=ax1.transAxes)
-    # Plot vertical lines to mark the steady state period
+        ('parameters:', r'$\lambda p=%g$' % (LAMBDA_P), r'mu=%g' % (MU),
+         r'$\frac{\lambda p}{mu}=%g$' % (LAMBDA_P / MU), ''))
+    ax1.text(-0.25, 0.2, text_str, transform=ax1.transaxes)
+    # plot vertical lines to mark the steady state period
     ax1.axvline(x=steady_start_time, c='r')
     ax1.axvline(x=steady_end_time, c='r')
 
-    # Apply convolution with given window size
+    # apply convolution with given window size
     ax3 = fig.add_subplot(212)
     ax3.set_xlim(-10, exp_duration + 10)  # +10 to give some space
-    ax3.set_title("Convolution (win_size: %d)" % win_size)
-    ax3.set_xlabel("Time [s]")
-    ax3.set_ylabel("Queue Length")
+    ax3.set_title("convolution (win_size: %d)" % win_size)
+    ax3.set_xlabel("time [s]")
+    ax3.set_ylabel("queue length")
 
-    # Add seconds axis showing full minutes
+    # add seconds axis showing full minutes
     ax4 = ax3.twiny()
     ax4.set_xlim(ax3.get_xlim())
     ax4.set_xticks(min_ticks)
 
     # list of numbers from 0..min_num
     ax4.set_xticklabels(list(range(min_num)))
-    ax4.set_xlabel("Time [min]")
+    ax4.set_xlabel("time [min]")
     for node in nodes:
-        qls = np.array(data[node].queueLength)
+        qls = np.array(data[node].queuelength)
         # win_size can max be the number of samples
         win_size = len(qls) if win_size > len(qls) else win_size
         conv = np.convolve(qls, np.ones(win_size), mode='same') / win_size
-        ax3.plot(data[node].relTime, conv)
+        ax3.plot(data[node].reltime, conv)
 
-    # Plot vertical lines to mark the steady state period
+    # plot vertical lines to mark the steady state period
     ax3.axvline(x=steady_start_time, c='r')
     ax3.axvline(x=steady_end_time, c='r')
 
@@ -203,7 +203,7 @@ def plotFig(data, nodes, exp_duration, stats_df, win_size, steady_start_time,
 
 def parse_conf(conf):
     """
-    Parses the config file and returns LAMBDA_P and MU
+    parses the config file and returns lambda_p and mu
     """
     with open(conf, 'r') as f:
         raw_conf = f.read()
@@ -215,14 +215,26 @@ def parse_conf(conf):
 
 def make_mom_plot(df, ax, title=''):
     """
-    Calculates the stats for a bunch of expriment and returns a corresponding axis containing a mean of means plot
-        - df: DataFrame containing statistics for each experiment
+    calculates the stats for a bunch of expriment and returns a corresponding axis containing a mean of means plot
+        - df: dataframe containing statistics for each experiment
     """
     mean_cols = [x for x in df.columns if 'mean' in x]
-    labels = [x.split('_')[2] for x in mean_cols]  # strip the nodes name
+    # strip the nodes name
     std_cols = [x for x in df.columns if 'std' in x]
+    zeroFreq_cols = [x for x in df.columns if 'zeroFreq' in x]
+
     mean_of_means = df[mean_cols].mean(axis=0)
     mean_of_stds = df[std_cols].mean(axis=0)
+    mean_of_zeroFreq = df[zeroFreq_cols].mean(axis=0)
+
+    # Each label contains stats about mean, std and zeroFreq
+    labels = []
+    for i in range(len(mean_cols)):
+        labels.append('\n'.join(
+            (mean_cols[i].split('_')[2],
+             r'mean  =%.2f' % (mean_of_means[mean_cols[i]]),
+             r'sigma =%.2f' % (mean_of_stds[std_cols[i]]),
+             r'0-freq =%.2f' % (mean_of_zeroFreq[zeroFreq_cols[i]]))))
 
     x_pos = np.arange(len(labels))
     ax.bar(x_pos, mean_of_means, yerr=mean_of_stds, capsize=10, alpha=0.5)
@@ -239,11 +251,21 @@ def plot_mean_of_means(df_dict):
         -dfs: dict with keys being the plot title and values being the corresponding DataFrames
     """
     print("Plotting Mean of Means for %d DataFrames..." % (len(df_dict)))
-    fig, axs = plt.subplots(ncols=len(df_dict),
+    # Create a figure which size and subplot layout adjusts according to the number of DataFrames given
+    fig, axs = plt.subplots(figsize=(5 * len(df_dict), 6),
+                            ncols=len(df_dict),
                             constrained_layout=True,
                             sharey=True)
     fig.suptitle("Server Msg Queue Length\nMean of Means")
 
+    # Print general parameters to the bottom of the plot
+    params_str = ' | '.join(
+        ('Parameters:', r'$\lambda P=%g$' % (LAMBDA_P), r'Mu=%g' % (MU),
+         r'$\frac{\lambda P}{Mu}=%g$' % (LAMBDA_P / MU), ''))
+    fig.subplots_adjust(bottom=0.2)
+    fig.text(0.5, 0.01, params_str, ha='center')
+
+    # For each dataFrame create a plot an plot them next to one another
     for (i, title) in enumerate(df_dict.keys()):
         make_mom_plot(df_dict[title], axs[i], title)
         file_title = ''.join(title.split(' '))
@@ -253,8 +275,9 @@ def plot_mean_of_means(df_dict):
             df_dict[title].to_csv(f)
         print('Saved .csv file for \"%s\": to %s' % (title, path))
 
+    # Display the figure and save it to file
     fig.show()
-    input()
+    input()  # only to keep the plot open
     path = os.path.join(ARGS.exp_dir, 'mean_of_means.png')
     fig.savefig(path)
     print('Successfully saved plot to %s' % path)
