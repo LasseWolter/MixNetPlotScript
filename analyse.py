@@ -155,12 +155,12 @@ def plotFig(data, nodes, exp_duration, stats_df, win_size, steady_start_time,
         text_str += '\n'.join(
             (node + ':', r'mean=%.2f' % (stats_df.loc[0]['mean_' + node]),
              r'$\sigma=%.2f$' % (stats_df.loc[0]['std_' + node]),
-             r'zeroFreq=%.2f' % (stats_df.loc[0]['zerofreq_' + node]), '', ''))
+             r'zeroFreq=%.2f' % (stats_df.loc[0]['zeroFreq_' + node]), '', ''))
 
     text_str += '\n'.join(
         ('parameters:', r'$\lambda p=%g$' % (LAMBDA_P), r'mu=%g' % (MU),
          r'$\frac{\lambda p}{mu}=%g$' % (LAMBDA_P / MU), ''))
-    ax1.text(-0.25, 0.2, text_str, transform=ax1.transaxes)
+    ax1.text(-0.25, 0.2, text_str, transform=ax1.transAxes)
     # plot vertical lines to mark the steady state period
     ax1.axvline(x=steady_start_time, c='r')
     ax1.axvline(x=steady_end_time, c='r')
@@ -181,11 +181,11 @@ def plotFig(data, nodes, exp_duration, stats_df, win_size, steady_start_time,
     ax4.set_xticklabels(list(range(min_num)))
     ax4.set_xlabel("time [min]")
     for node in nodes:
-        qls = np.array(data[node].queuelength)
+        qls = np.array(data[node].queueLength)
         # win_size can max be the number of samples
         win_size = len(qls) if win_size > len(qls) else win_size
         conv = np.convolve(qls, np.ones(win_size), mode='same') / win_size
-        ax3.plot(data[node].reltime, conv)
+        ax3.plot(data[node].relTime, conv)
 
     # plot vertical lines to mark the steady state period
     ax3.axvline(x=steady_start_time, c='r')
