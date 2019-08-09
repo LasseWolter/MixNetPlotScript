@@ -275,9 +275,10 @@ def plot_mean_of_means(df_dict):
             df_dict[title].to_csv(f)
         print('Saved .csv file for \"%s\": to %s' % (title, path))
 
-    # Display the figure and save it to file
-    fig.show()
-    input()  # only to keep the plot open
+    if ARGS.show == "show":
+        fig.show()
+        input()  # only to keep the plot open
+
     path = os.path.join(ARGS.exp_dir, 'mean_of_means.png')
     fig.savefig(path)
     print('Successfully saved plot to %s' % path)
